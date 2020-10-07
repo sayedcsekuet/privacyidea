@@ -151,7 +151,12 @@ class HTTPResolver(UserIdResolver):
         """
         if searchDict is None:
             searchDict = {}
-        listUsers=self._getListData(searchDict)
+        if ("username" in searchDict) and (searchDict['username'].find('*') == -1):
+            user=self._getUser(searchDict['username'])
+            listUsers=[user]
+        else:
+            listUsers=self._getListData(searchDict)
+
         return listUsers
 
     def getResolverId(self):
@@ -222,7 +227,6 @@ class HTTPResolver(UserIdResolver):
             data= jsonHTTPResponse[0]
 
         self._createSpecialError(data, userid)
-        print(isinstance(jsonHTTPResponse, dict))
         return self._mapData(responseMapping, data)
 
     def _getListData(self, searchDict=None ):
@@ -233,6 +237,7 @@ class HTTPResolver(UserIdResolver):
         headers = json.loads(param.get('listHeaders', '{}'))
         responseMapping = json.loads(param.get('listResponseMapping'))
         jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
+        self._createSpecialError(jsonHTTPResponse, 'getListData')
         users=[]
         for userData in jsonHTTPResponse:
             user=self._mapData(responseMapping, userData)
@@ -263,7 +268,7 @@ class HTTPResolver(UserIdResolver):
                 response[pi_user_key] = value
         return response
 
-    def _filterData(self, data, find='*', replace='%'):
+    def _filterData(self, data, find='*', replace=''):
         if data == None:
             return data
         # Create mapped response with response mapping resolver input
@@ -278,7 +283,7 @@ class HTTPResolver(UserIdResolver):
         param = self.config
         hasSpecialErrorHandler = bool(param.get('hasSpecialErrorHandler'))
         errorResponse = json.loads(param.get('errorResponse', '{}'))
-        if hasSpecialErrorHandler:
+        if hasSpecialErrorHandler and len(errorResponse.items()):
             # verify if error response mapping is a subset of the json http response
             if all([x in responseData.items() for x in errorResponse.items()]):
                 log.error(responseData)

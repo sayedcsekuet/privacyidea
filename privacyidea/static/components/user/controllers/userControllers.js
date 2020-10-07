@@ -314,6 +314,9 @@ angular.module("privacyideaApp")
             for (var rname in resolvers) {
                 var resolver = resolvers[rname];
                 switch (resolver.type){
+                    case "httpresolver":
+                        var userinfo = JSON.parse(resolver.data.responseMapping);
+                        break;
                     case "ldapresolver":
                         var userinfo = JSON.parse(resolver.data.USERINFO);
                         break;
