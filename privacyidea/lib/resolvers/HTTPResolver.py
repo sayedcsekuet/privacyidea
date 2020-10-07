@@ -237,7 +237,6 @@ class HTTPResolver(UserIdResolver):
         headers = json.loads(param.get('listHeaders', '{}'))
         responseMapping = json.loads(param.get('listResponseMapping'))
         jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
-        self._createSpecialError(jsonHTTPResponse, 'getListData')
         users=[]
         for userData in jsonHTTPResponse:
             user=self._mapData(responseMapping, userData)
