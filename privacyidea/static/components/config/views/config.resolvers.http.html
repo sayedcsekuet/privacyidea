@@ -16,11 +16,56 @@
             </div>
         </div>
         <div class="form-group row">
+            <label for="resolverListUrl" class="col-sm-3 control-label text-right" translate>List Endpoint (URL)</label>
+
+            <div class="col-sm-9">
+                <input type="url" name="listEndpoint" id="resolverListUrl" class="form-control" ng-model="params.listEndpoint" required
+                       placeholder="http://example.com/path/to/users" />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="resolverListMethod" class="col-sm-3 control-label text-right" translate>List Method</label>
+
+            <div class="col-sm-9">
+                <select name="listMethod" id="resolverListMethod" ng-model="params.listMethod" class="form-control"
+                        required>
+                    <option value="get">GET</option>
+                    <option value="post">POST</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group row">
+            <label for="listRequestMapping" class="col-sm-3 control-label text-right" translate>List Request Mapping (JSON format)</label>
+
+            <div class="col-sm-9">
+                <input type="text" name="listRequestMapping" id="listRequestMapping" ng-model="params.listRequestMapping"
+                       placeholder='{"customerid": "{userid}", "accessKey": "secr3t!"}' class="form-control" required />
+            </div>
+        </div>
+        <div class="form-group row">
+            <label for="listHeaders" class="col-sm-3 control-label text-right" translate>List Headers (JSON format)</label>
+            <div class="col-sm-9">
+                <input type="text" name="listHeaders" id="listHeaders" ng-model="params.listHeaders"
+                       placeholder='{"Content-Type": "application/json; charset=UTF-8"}' class="form-control" required />
+            </div>
+        </div>
+
+        <div class="form-group row">
+            <label for="listResponseMapping" class="col-sm-3 control-label text-right" translate>List Response Mapping
+                (JSON format)</label>
+            <div class="col-sm-9">
+                <input type="text" name="listResponseMapping" id="listResponseMapping" ng-model="params.listResponseMapping"
+                       placeholder='{"email":"{email}","givenname":"{name}","id":1,"userid":"{id}","username":"{username}"}' class="form-control" required />
+            </div>
+        </div>
+
+        <div class="form-group row">
             <label for="resolverurl" class="col-sm-3 control-label text-right" translate>Endpoint (URL)</label>
 
             <div class="col-sm-9">
-                <input type="url" name="resolverfile" id="resolverfile" class="form-control" ng-model="params.endpoint" required
-                    placeholder="http://example.com/path/to/users/:userid" />
+                <input type="url" name="resolverfile" id="resolverurl" class="form-control" ng-model="params.endpoint" required
+                    placeholder="http://example.com/path/to/users/{userid}" />
             </div>
         </div>
         <div class="form-group row">

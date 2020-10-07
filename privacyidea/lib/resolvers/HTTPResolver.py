@@ -45,6 +45,11 @@ log = logging.getLogger(__name__)
 class HTTPResolver(UserIdResolver):
 
     fields = {
+        "listEndpoint": 1,
+        "listMethod": 1,
+        "listRequestMapping": 1,
+        "listHeaders": 1,
+        "listResponseMapping": 1,
         "endpoint": 1,
         "method": 1,
         "requestMapping": 1,
@@ -89,6 +94,11 @@ class HTTPResolver(UserIdResolver):
         typ = cls.getResolverClassType()
         descriptor['clazz'] = "useridresolver.HTTPResolver.HTTPResolver"
         descriptor['config'] = {
+            'listEndpoint': 'string',
+            'listMethod': 'string',
+            'listHeaders': 'string',
+            'listRequestMapping': 'string',
+            'listResponseMapping': 'string',
             'endpoint': 'string',
             'method': 'string',
             'headers': 'string',
@@ -139,7 +149,10 @@ class HTTPResolver(UserIdResolver):
         Since it is an HTTP resolver,
         users are not stored in the database
         """
-        return []
+        if searchDict is None:
+            searchDict = {}
+        listUsers=self._getListData(searchDict)
+        return listUsers
 
     def getResolverId(self):
         """
@@ -176,13 +189,15 @@ class HTTPResolver(UserIdResolver):
         :return: returns True in case of success and a raw response
         :rtype: tuple
         """
-        desc = ""
+        desc = {}
+        paramData={}
         success = False
         try:
             resolver = HTTPResolver()
             resolver.loadConfig(param)
-            response = resolver._getUser(param.get('testUser'))
-            desc = response
+            paramData['userid']=param.get('testUser')
+            desc['userInfoResponse']=resolver._getUser(param.get('testUser'))
+            desc['userListResponse']=resolver._getListData(paramData)
             success = True
         except Exception as e:
             success = False
@@ -195,35 +210,76 @@ class HTTPResolver(UserIdResolver):
     def _getUser(self, userid):
         param = self.config
         method = param.get('method').lower()
-        endpoint = param.get('endpoint')
+        endpoint = param.get('endpoint').replace("{userid}", userid)
         requestMappingJSON = json.loads(param.get('requestMapping').replace("{userid}", userid))
         responseMapping = json.loads(param.get('responseMapping'))
         headers = json.loads(param.get('headers', '{}'))
-        hasSpecialErrorHandler = bool(param.get('hasSpecialErrorHandler'))
-        errorResponse = json.loads(param.get('errorResponse', '{}'))
 
-        if method == "post":
-            httpResponse = requests.post(endpoint, json=requestMappingJSON, headers=headers)
+        jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
+        if isinstance(jsonHTTPResponse, dict):
+            data=jsonHTTPResponse
         else:
-            httpResponse = requests.get(endpoint, urlencode(requestMappingJSON), headers=headers)
+            data= jsonHTTPResponse[0]
+
+        self._createSpecialError(data, userid)
+        print(isinstance(jsonHTTPResponse, dict))
+        return self._mapData(responseMapping, data)
+
+    def _getListData(self, searchDict=None ):
+        param = self.config
+        method = param.get('listMethod').lower()
+        endpoint = param.get('listEndpoint')
+        requestMappingJSON = self._filterData(self._mapData(json.loads(param.get('listRequestMapping')),searchDict))
+        headers = json.loads(param.get('listHeaders', '{}'))
+        responseMapping = json.loads(param.get('listResponseMapping'))
+        jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
+        users=[]
+        for userData in jsonHTTPResponse:
+            user=self._mapData(responseMapping, userData)
+            if "id" in user:
+                user['editable']=False
+                users.append(user)
+        return users
+
+    def _sendHttpRequest(self, endpoint, method, requestParams={}, headers={} ):
+        method = method.lower()
+        if method == "post":
+            httpResponse = requests.post(endpoint, json=requestParams, headers=headers)
+        else:
+            httpResponse = requests.get(endpoint, urlencode(requestParams), headers=headers)
 
         # Raises HTTPError, if one occurred.
         httpResponse.raise_for_status()
-
         jsonHTTPResponse = httpResponse.json()
+        return jsonHTTPResponse
 
-        if hasSpecialErrorHandler:
-            # verify if error response mapping is a subset of the json http response
-            if all([x in jsonHTTPResponse.items() for x in errorResponse.items()]):
-                log.error(jsonHTTPResponse)
-                raise Exception('Received an error while searching for user: %s' % userid)
-
+    def _mapData(self, mapping, data):
         # Create mapped response with response mapping resolver input
-        response = {}
-        for pi_user_key, value in responseMapping.items():
+        response={}
+        for pi_user_key, value in mapping.items():
             if value.startswith('{') and value.endswith('}'):
-                response[pi_user_key] = get(jsonHTTPResponse, value[1:-1])
+                response[pi_user_key] = get(data, value[1:-1])
             else:
                 response[pi_user_key] = value
-
         return response
+
+    def _filterData(self, data, find='*', replace='%'):
+        if data == None:
+            return data
+        # Create mapped response with response mapping resolver input
+        response={}
+        for key, value in data.items():
+            if value == None:
+                continue
+            response[key] = value.replace(find,replace)
+        return response
+
+    def _createSpecialError(self, responseData, userid):
+        param = self.config
+        hasSpecialErrorHandler = bool(param.get('hasSpecialErrorHandler'))
+        errorResponse = json.loads(param.get('errorResponse', '{}'))
+        if hasSpecialErrorHandler:
+            # verify if error response mapping is a subset of the json http response
+            if all([x in responseData.items() for x in errorResponse.items()]):
+                log.error(responseData)
+                raise Exception('Received an error while searching for user: %s' % userid)
