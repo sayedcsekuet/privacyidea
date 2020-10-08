@@ -56,7 +56,8 @@ class HTTPResolver(UserIdResolver):
         "headers": 1,
         "responseMapping": 1,
         "hasSpecialErrorHandler": 0,
-        "errorResponse": 0
+        "errorResponse": 0,
+        "limit": 1
     }
 
     def __init__(self):
@@ -106,6 +107,7 @@ class HTTPResolver(UserIdResolver):
             'responseMapping': 'string',
             'hasSpecialErrorHandler': 'bool',
             'errorResponse': 'string',
+            'limit': 'string'
         }
         return {typ: descriptor}
 
@@ -234,6 +236,8 @@ class HTTPResolver(UserIdResolver):
         method = param.get('listMethod').lower()
         endpoint = param.get('listEndpoint')
         requestMappingJSON = self._filterData(self._mapData(json.loads(param.get('listRequestMapping')),searchDict))
+        limit = param.get('limit',1000)
+        requestMappingJSON['limit']=param.get('limit',1000)
         headers = json.loads(param.get('listHeaders', '{}'))
         responseMapping = json.loads(param.get('listResponseMapping'))
         jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
