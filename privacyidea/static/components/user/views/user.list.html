@@ -8,31 +8,27 @@
     <table class="table table-bordered table-striped" id="tableuserlist">
         <thead>
         <tr>
-            <th class="pifilter">
-                <translate>username</translate>
+            <th class="pifilter"><translate>username</translate>
                 <pi-filter ng-model="params.usernameFilter"
-                           ng-change="(params.usernameFilter.length>=3)?_getUsers('livesearch'):return"
+                           ng-change="_getUsers('livesearch')"
                            ng-keypress="($event.which==13)?_getUsers():return"
-                ></pi-filter>
+                           ></pi-filter>
             </th>
-            <th class="pifilter">
-                <translate>surname</translate>
+            <th class="pifilter"><translate>surname</translate>
                 <pi-filter ng-model="params.surnameFilter"
-                           ng-change="(params.surnameFilter.length>=3)?_getUsers('livesearch'):return"
+                           ng-change="_getUsers('livesearch')"
                            ng-keypress="($event.which==13)?_getUsers():return"
                 ></pi-filter>
             </th>
-            <th class="pifilter">
-                <translate>givenname</translate>
+            <th class="pifilter"><translate>givenname</translate>
                 <pi-filter ng-model="params.givennameFilter"
-                           ng-change="(params.givennameFilter.length>=3)?_getUsers('livesearch'):return"
+                           ng-change="_getUsers('livesearch')"
                            ng-keypress="($event.which==13)?_getUsers():return"
                 ></pi-filter>
             </th>
-            <th class="pifilter">
-                <translate>email</translate>
+            <th class="pifilter"><translate>email</translate>
                 <pi-filter ng-model="params.emailFilter"
-                           ng-change="(params.emailFilter.length>=3)?_getUsers('livesearch'):return"
+                           ng-change="_getUsers('livesearch')"
                            ng-keypress="($event.which==13)?_getUsers():return"
                 ></pi-filter>
             </th>
