@@ -67,6 +67,8 @@ angular.module("privacyideaApp")
     $scope.hasJobQueue = obj.val() == "True";
     obj = angular.element(document.querySelector('#LOGIN_TEXT'));
     $scope.piLoginText = obj.val();
+    obj = angular.element(document.querySelector('#GDPR_LINK'));
+    $scope.piGDPRLink = obj.val();
     obj = angular.element(document.querySelector('#PI_TRANSLATION_WARNING'));
     $scope.piTranslationWarning = obj.val() !== "False";
     $scope.piTranslationPrefix = obj.val();
@@ -435,6 +437,38 @@ angular.module("privacyideaApp")
             Idle.watch();
             //debug: console.log("successfully authenticated");
             //debug: console.log($scope.loggedInUser);
+            if ($scope.loggedInUser.role === "admin") {
+            /*
+            * Functions to check and to create a default realm.
+            */
+                ConfigFactory.getRealms(function (data) {
+                    // Check if there is a realm defined, or if we should display the
+                    // Auto Create Dialog
+                    var number_of_realms = Object.keys(data.result.value).length;
+                    if (number_of_realms === 0) {
+                        $('#dialogAutoCreateRealm').modal();
+                    }
+                });
+                /*
+                 Welcome dialog, which displays a lot of information to the
+                 administrator.
+
+                 We display it if
+                 subscription_state = 0 and hide_welcome = false
+                 subscription_state = 1
+                 subscription_state = 2
+                 */
+                $scope.resetWelcome();
+                if (($scope.welcomeStep < 4 && !$scope.hide_welcome) || $scope.welcomeStep < 5) {
+                    // We did not walk through the welcome dialog, yet.
+                    if (($scope.subscription_state === 0 && !$scope.hide_welcome) ||
+                        ($scope.subscription_state === 1)) {
+                        $('#dialogWelcome').modal("show");
+                    }
+                }
+                var $random_number = Math.floor(Math.random() * (9999 + 1000 + 1)) + 1000;
+                $scope.class_subscription_expired = "subscriptionExpired" + $random_number;
+            }
             if ( $scope.unlocking ) {
                 $('#dialogLock').modal('hide');
             } else {
@@ -454,7 +488,7 @@ angular.module("privacyideaApp")
         $scope.privacyideaVersionNumber = null;
         $scope.logoutWarning = false;
         $scope.myCountdown = "";
-        $scope.welcomeStep = 0;
+        $scope.resetWelcome();
         $scope.dialogNoToken = false;
         $scope.privacyideaSupportLink = $rootScope.publicLink;
         $state.go("login");
@@ -465,12 +499,18 @@ angular.module("privacyideaApp")
 
     $scope.nextWelcome = function() {
         $scope.welcomeStep += 1;
-        if ($scope.welcomeStep === 4) {
+        if (($scope.subscription_state == 0 && $scope.welcomeStep === 4) ||
+            ($scope.subscription_state == 1 && $scope.welcomeStep === 5)) {
             $('#dialogWelcome').modal("hide");
         }
     };
     $scope.resetWelcome = function() {
-        $scope.welcomeStep = 0;
+        if ($scope.hide_welcome) {
+            $scope.welcomeStep = 4;
+        } else {
+            $scope.welcomeStep = 0;
+        }
+
     };
 
     $scope.closeNoToken = function() {
@@ -481,7 +521,7 @@ angular.module("privacyideaApp")
     $scope.lock_screen = function () {
         // We need to destroy the auth_token
         $scope.loggedInUser.auth_token = null;
-        $scope.welcomeStep = 0;
+        $scope.resetWelcome();
         Idle.unwatch();
         $('#dialogLock').modal({
             keyboard: false,

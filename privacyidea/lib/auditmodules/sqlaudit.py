@@ -88,8 +88,8 @@ class Audit(AuditBase):
 
     is_readable = True
 
-    def __init__(self, config=None):
-        super(Audit, self).__init__(config)
+    def __init__(self, config=None, startdate=None):
+        super(Audit, self).__init__(config, startdate)
         self.name = "sqlaudit"
         self.sign_data = not self.config.get("PI_AUDIT_NO_SIGN")
         self.sign_object = None
@@ -114,7 +114,7 @@ class Audit(AuditBase):
         self.session = Session()
         # Ensure that the connection gets returned to the pool when the request has
         # been handled. This may close an already-closed session, but this is not a problem.
-        register_finalizer(self.session.close)
+        register_finalizer(self._finalize_session)
         self.session._model_changes = {}
 
     def _create_engine(self):
@@ -138,6 +138,11 @@ class Audit(AuditBase):
             engine = create_engine(connect_string)
             log.debug("Using no SQL pool_size.")
         return engine
+
+    def _finalize_session(self):
+        """ Close current session and dispose connections of db engine"""
+        self.session.close()
+        self.engine.dispose()
 
     def _truncate_data(self):
         """
@@ -235,6 +240,10 @@ class Audit(AuditBase):
                             "Error occurs in action: {0!r}.".format(self.audit_data.get("action")))
                 if not "token_type" in self.audit_data:
                     self.audit_data["token_type"] = self.audit_data.get("tokentype")
+            if self.audit_data.get("startdate"):
+                duration = datetime.datetime.now() - self.audit_data.get("startdate")
+            else:
+                duration = None
             le = LogEntry(action=self.audit_data.get("action"),
                           success=int(self.audit_data.get("success", 0)),
                           serial=self.audit_data.get("serial"),
@@ -249,7 +258,9 @@ class Audit(AuditBase):
                           client=self.audit_data.get("client", ""),
                           loglevel=self.audit_data.get("log_level"),
                           clearance_level=self.audit_data.get("clearance_level"),
-                          policies=self.audit_data.get("policies")
+                          policies=self.audit_data.get("policies"),
+                          startdate=self.audit_data.get("startdate"),
+                          duration=duration
                           )
             self.session.add(le)
             self.session.commit()
@@ -335,6 +346,11 @@ class Audit(AuditBase):
                                                    le.client,
                                                    le.loglevel,
                                                    le.clearance_level)
+        # If we have the new log entries, we also add them for signing and verification.
+        if le.startdate:
+            s += ",{0!s}".format(le.startdate)
+        if le.duration:
+            s += ",{0!s}".format(le.duration)
         return s
 
     @staticmethod
@@ -347,6 +363,8 @@ class Audit(AuditBase):
                     'success': LogEntry.success,
                     'serial': LogEntry.serial,
                     'date': LogEntry.date,
+                    'startdate': LogEntry.startdate,
+                    'duration': LogEntry.duration,
                     'token_type': LogEntry.token_type,
                     'user': LogEntry.user,
                     'realm': LogEntry.realm,
@@ -521,4 +539,6 @@ class Audit(AuditBase):
         audit_dict['client'] = audit_entry.client
         audit_dict['log_level'] = audit_entry.loglevel
         audit_dict['clearance_level'] = audit_entry.clearance_level
+        audit_dict['startdate'] = audit_entry.startdate.isoformat() if audit_entry.startdate else None
+        audit_dict['duration'] = audit_entry.duration.total_seconds() if audit_entry.duration else None
         return audit_dict

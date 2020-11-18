@@ -79,6 +79,7 @@ from privacyidea.lib import _
 from privacyidea.models import Challenge
 from privacyidea.lib.decorators import check_token_locked
 from privacyidea.lib.smtpserver import send_email_data, send_email_identifier
+from privacyidea.lib.crypto import safe_compare
 
 
 log = logging.getLogger(__name__)
@@ -332,7 +333,7 @@ class EmailTokenClass(HotpTokenClass):
         options = options or {}
         ret = HotpTokenClass.check_otp(self, anOtpVal, counter, window, options)
         if ret < 0 and is_true(get_from_config("email.concurrent_challenges")):
-            if options.get("data") == anOtpVal:
+            if safe_compare(options.get("data"), anOtpVal):
                 # We authenticate from the saved challenge
                 ret = 1
         if ret >= 0 and self._get_auto_email(options):
@@ -445,7 +446,8 @@ class EmailTokenClass(HotpTokenClass):
 
         log.debug("sending Email to {0!r}".format(recipient))
 
-        identifier = get_from_config("email.identifier")
+        # The token specific identifier has priority over the system wide identifier
+        identifier = self.get_tokeninfo("email.identifier") or get_from_config("email.identifier")
         if identifier:
             # New way to send email
             ret = send_email_identifier(identifier, recipient, subject, message,

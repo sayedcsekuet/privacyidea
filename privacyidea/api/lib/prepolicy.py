@@ -898,6 +898,29 @@ def auditlog_age(request=None, action=None):
     return True
 
 
+def hide_audit_columns(request=None, action=None):
+    """
+    This pre condition checks for the policy hide_audit_columns and sets the
+    "hidden_columns" parameter for the audit search. The given columns will be
+    removed from the returned audit dict.
+
+    Check ACTION.HIDE_AUDIT_COLUMNS
+
+    The decorator should wrap GET /audit/
+
+    :param request: The request that is intercepted during the API call
+    :type request: Request Object
+    :param action: An optional Action
+    :type action: basestring
+    :returns: Always true. Modified the parameter request
+    """
+    hidden_columns = Match.admin_or_user(g, action=ACTION.HIDE_AUDIT_COLUMNS,
+                                         user_obj=request.User).action_values(unique=False)
+    request.all_data["hidden_columns"] = list(hidden_columns)
+
+    return True
+
+
 def mangle(request=None, action=None):
     """
     This pre condition checks if either of the parameters pass, user or realm
@@ -1197,13 +1220,15 @@ def mock_fail(req, action):
     raise Exception("This is an Exception in an external check function")
 
 
-def is_remote_user_allowed(req):
+def is_remote_user_allowed(req, write_to_audit_log=True):
     """
     Checks if the REMOTE_USER server variable is allowed to be used.
 
     .. note:: This is not used as a decorator!
 
     :param req: The flask request, containing the remote user and the client IP
+    :param write_to_audit_log: whether the policy name should be added to the audit log entry
+    :type write_to_audit_log: bool
     :return: a bool value
     """
     res = False
@@ -1213,7 +1238,8 @@ def is_remote_user_allowed(req):
         ruser_active = Match.generic(g, scope=SCOPE.WEBUI,
                                      action=ACTION.REMOTE_USER,
                                      user=loginname,
-                                     realm=realm).action_values(unique=False)
+                                     realm=realm).action_values(unique=False,
+                                                                write_to_audit_log=write_to_audit_log)
         # there should be only one action value here
         if ruser_active:
             if list(ruser_active)[0] == REMOTE_USER.ACTIVE:

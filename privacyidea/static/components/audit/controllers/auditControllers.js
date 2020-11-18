@@ -56,6 +56,8 @@ myApp.controller("auditController", function (AuditFactory, $scope, $rootScope,
         $scope.params.privacyidea_server = "*" + ($scope.serverFilter || "") + "*";
         $scope.params.info = "*" + ($scope.infoFilter || "") + "*";
         $scope.params.date = "*" + ($scope.dateFilter || "") + "*";
+        $scope.params.startdate = "*" + ($scope.startdateFilter || "") + "*";
+        $scope.params.duration = "*" + ($scope.durationFilter || "") + "*";
         //debug: console.log("Request Audit Trail with params");
         //debug: console.log($scope.params);
     };
@@ -65,6 +67,11 @@ myApp.controller("auditController", function (AuditFactory, $scope, $rootScope,
             $scope.getParams();
             AuditFactory.get($scope.params, function(data) {
                 $scope.auditdata = data.result.value;
+                if ($scope.auditdata.auditdata[0]) {
+                    $scope.audit_columns = Object.keys($scope.auditdata.auditdata[0]);
+                } else {
+                    $scope.audit_columns = [];
+                }
                 // We split the policies, which come as comma separated string to an array.
                 angular.forEach($scope.auditdata.auditdata, function(auditentry, key) {
                     if ($scope.auditdata.auditdata[key].policies != null) {
