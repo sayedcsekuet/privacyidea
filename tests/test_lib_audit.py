@@ -317,6 +317,16 @@ class AuditTestCase(MyTestCase):
         # The tokentype was actually written as token_type
         self.assertEqual(audit_log.auditdata[0].get("token_type"), "spass")
 
+    def test_11_check_audit_columns(self):
+        self.Audit.log({"action": "test11"})
+        self.Audit.finalize_log()
+        audit_log = self.Audit.search({"action": "test11"})
+        self.assertEqual(audit_log.total, 1)
+        # The tokentype was actually written as token_type
+        self.assertEqual(set(audit_log.auditdata[0].keys()),
+                         set(self.Audit.available_audit_columns),
+                         audit_log.auditdata[0].keys())
+
 
 class AuditColumnLengthTestCase(OverrideConfigTestCase):
     class Config(TestingConfig):
@@ -413,7 +423,8 @@ class ContainerAuditTestCase(OverrideConfigTestCase):
                                                          "privacyidea.lib.auditmodules.sqlaudit"],
                             "PI_AUDIT_CONTAINER_READ": "privacyidea.lib.auditmodules.sqlaudit",
                             "PI_AUDIT_NO_SIGN": True,
-                            "PI_AUDIT_SQL_URI": 'sqlite:///' + os.path.join(basedir, 'data-test.sqlite')})
+                            "PI_AUDIT_SQL_URI": 'sqlite:///' + os.path.join(basedir, 'data-test.sqlite')},
+                           startdate=None)
         self.assertFalse(a.has_data)
         a.log({"action": "something_test_30"})
         self.assertTrue(a.has_data)

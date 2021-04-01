@@ -30,7 +30,7 @@ myApp.controller("auditController", function (AuditFactory, $scope, $rootScope,
                      page_size: 10,
                      page: 1};
     $scope.instanceUrl = instanceUrl;
-    var df = gettextCatalog.getString("yyyy-MM-dd HH:mm:ss");
+    var df = "yyyy-MM-dd HH:mm:ss";
     $scope.dateFormat = df;
 
     // If the state is called with some filter values
@@ -67,11 +67,7 @@ myApp.controller("auditController", function (AuditFactory, $scope, $rootScope,
             $scope.getParams();
             AuditFactory.get($scope.params, function(data) {
                 $scope.auditdata = data.result.value;
-                if ($scope.auditdata.auditdata[0]) {
-                    $scope.audit_columns = Object.keys($scope.auditdata.auditdata[0]);
-                } else {
-                    $scope.audit_columns = [];
-                }
+                $scope.audit_columns = data.result.value.auditcolumns;
                 // We split the policies, which come as comma separated string to an array.
                 angular.forEach($scope.auditdata.auditdata, function(auditentry, key) {
                     if ($scope.auditdata.auditdata[key].policies != null) {

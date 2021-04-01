@@ -135,12 +135,18 @@ class TimestampMethodsMixin(object):
 
 class Token(MethodsMixin, db.Model):
     """
-    The table "token" contains the basic token data like
+    The "Token" table contains the basic token data.
+
+    It contains data like
      * serial number
-     * assigned user
-     * secret key...
-    while the table "tokeninfo" contains additional information that is specific
-    to the tokentype.
+     * secret key
+     * PINs
+     * ...
+
+    The table :py:class:`privacyidea.models.TokenOwner` contains the owner
+    information of the specified token.
+    The table :py:class:`privacyidea.models.TokenInfo` contains additional information
+    that is specific to the tokentype.
     """
     __tablename__ = 'token'
     __table_args__ = {'mysql_row_format': 'DYNAMIC'}
@@ -286,12 +292,13 @@ class Token(MethodsMixin, db.Model):
     def set_realms(self, realms, add=False):
         """
         Set the list of the realms.
-        This is done by filling the tokenrealm table.
+
+        This is done by filling the :py:class:`privacyidea.models.TokenRealm` table.
+
         :param realms: realms
-        :type realms: list
-        :param add: If set, the realms are added. I.e. old realms are not
-            deleted
-        :type add: boolean
+        :type realms: list[str]
+        :param add: If set, the realms are added. I.e. old realms are not deleted
+        :type add: bool
         """
         # delete old TokenRealms
         if not add:
@@ -1353,13 +1360,15 @@ def cleanup_challenges():
 
 class Policy(TimestampMethodsMixin, db.Model):
     """
-    The policy table contains policy definitions which control
-    the behaviour during
+    The policy table contains the policy definitions.
+
+    The Policies control the behaviour in the scopes
      * enrollment
      * authentication
      * authorization
      * administration
      * user actions
+     * webui
     """
     __tablename__ = "policy"
     __table_args__ = {'mysql_row_format': 'DYNAMIC'}
@@ -2679,6 +2688,7 @@ class AuthCache(MethodsMixin, db.Model):
     realm = db.Column(db.Unicode(120), default=u'', index=True)
     client_ip = db.Column(db.Unicode(40), default=u"")
     user_agent = db.Column(db.Unicode(120), default=u"")
+    auth_count = db.Column(db.Integer, default=0)
     # We can hash the password like this:
     # binascii.hexlify(hashlib.sha256("secret123456").digest())
     authentication = db.Column(db.Unicode(255), default=u"")
@@ -2689,8 +2699,8 @@ class AuthCache(MethodsMixin, db.Model):
         self.realm = realm
         self.resolver = resolver
         self.authentication = authentication
-        self.first_auth = first_auth
-        self.last_auth = last_auth
+        self.first_auth = first_auth if first_auth else datetime.utcnow()
+        self.last_auth = last_auth if last_auth else self.first_auth
 
 
 ### Periodic Tasks

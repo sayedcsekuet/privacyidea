@@ -6,7 +6,7 @@ import stat
 import sys
 
 #VERSION = "2.1dev4"
-VERSION = "3.4.1"
+VERSION = "3.5.2"
 
 # Taken from kennethreitz/requests/setup.py
 package_directory = os.path.realpath(os.path.dirname(__file__))
@@ -36,7 +36,6 @@ install_requires = ["beautifulsoup4[lxml]>=4.3.2",
                     "croniter>=0.3.8",
                     "cryptography>=2.4.2",
                     "defusedxml>=0.4.1",
-                    "ecdsa>=0.13.3",
                     "Flask>=0.10.1",
                     "Flask-Babel>=0.9",
                     "Flask-Migrate>=1.2.0",
@@ -44,10 +43,10 @@ install_requires = ["beautifulsoup4[lxml]>=4.3.2",
                     "Flask-SQLAlchemy>=2.0",
                     "Flask-Versioned>=0.9.4",
                     "future>=0.18.2;python_version<'3.0'",
+                    "google-auth>=1.24.0",
                     "huey[redis]>=1.11.0",
                     "ldap3>=2.6",
                     "netaddr>=0.7.12",
-                    "oauth2client>=2.0.1",
                     "passlib[bcrypt]>=1.7.0",
                     "argon2_cffi>=20.1.0",
                     "Pillow>=6.2.1",
@@ -116,7 +115,8 @@ setup(
         'test': ["mock>=2.0.0",
                  "pytest>=3.6.0",
                  "pytest-cov>=2.5.1",
-                 "responses>=0.9.0"],
+                 "responses>=0.9.0",
+                 "testfixtures>=6.14.2"],
         'postgres': ['psycopg2>=2.8.3']
     },
     install_requires=install_requires,

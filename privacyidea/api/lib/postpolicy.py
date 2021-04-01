@@ -63,6 +63,7 @@ from privacyidea.lib.user import User
 from privacyidea.lib.realm import get_default_realm
 from privacyidea.lib.subscriptions import subscription_status
 from privacyidea.lib.utils import create_img
+from privacyidea.lib.config import get_privacyidea_node
 
 log = logging.getLogger(__name__)
 
@@ -496,9 +497,9 @@ def get_webui_settings(request, response):
                                             user=loginname, realm=realm).action_values(unique=True)
         user_page_size_pol = Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.USERPAGESIZE,
                                            user=loginname, realm=realm).action_values(unique=True)
-        token_wizard_2nd = (role == ROLE.USER
-                            and Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.TOKENWIZARD2ND,
-                                          user=loginname, realm=realm).policies())
+        token_wizard_2nd = bool(role == ROLE.USER
+                                and Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.TOKENWIZARD2ND,
+                                                  user=loginname, realm=realm).policies())
         admin_dashboard = (role == ROLE.ADMIN
                            and Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.ADMIN_DASHBOARD,
                                          user=loginname, realm=realm).any())
@@ -528,6 +529,7 @@ def get_webui_settings(request, response):
                                               user=loginname, realm=realm).action_values(unique=True)
         show_seed = Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.SHOW_SEED,
                                   user=loginname, realm=realm).any()
+        show_node = Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.SHOW_NODE, realm=realm).any()
         qr_ios_authenticator = Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.SHOW_IOS_AUTHENTICATOR,
                                              user=loginname, realm=realm).any()
         qr_android_authenticator = Match.generic(g, scope=SCOPE.WEBUI, action=ACTION.SHOW_ANDROID_AUTHENTICATOR,
@@ -587,6 +589,7 @@ def get_webui_settings(request, response):
         content["result"]["value"]["hide_welcome"] = hide_welcome
         content["result"]["value"]["hide_buttons"] = hide_buttons
         content["result"]["value"]["show_seed"] = show_seed
+        content["result"]["value"]["show_node"] = get_privacyidea_node() if show_node else ""
         content["result"]["value"]["subscription_status"] = subscription_status()
         content["result"]["value"]["qr_image_android"] = qr_image_android
         content["result"]["value"]["qr_image_ios"] = qr_image_ios

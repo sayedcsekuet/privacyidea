@@ -34,6 +34,7 @@ from privacyidea.api.lib.prepolicy import (check_token_upload,
                                            init_token_defaults, _generate_pin_from_policy,
                                            encrypt_pin, check_otp_pin,
                                            enroll_pin,
+                                           init_registrationcode_length_contents,
                                            check_external, api_key_required,
                                            mangle, is_remote_user_allowed,
                                            required_email, auditlog_age, hide_audit_columns,
@@ -45,7 +46,8 @@ from privacyidea.api.lib.prepolicy import (check_token_upload,
                                            check_admin_tokenlist, pushtoken_disable_wait,
                                            webauthntoken_auth, webauthntoken_authz,
                                            webauthntoken_enroll, webauthntoken_request,
-                                           webauthntoken_allowed, check_application_tokentype)
+                                           webauthntoken_allowed, check_application_tokentype,
+                                           required_piv_attestation)
 from privacyidea.lib.realm import set_realm as create_realm
 from privacyidea.lib.realm import delete_realm
 from privacyidea.api.lib.postpolicy import (check_serial, check_tokentype,
@@ -66,6 +68,7 @@ from privacyidea.lib.tokens.tantoken import TANACTION
 from privacyidea.lib.tokens.smstoken import SMSACTION
 from privacyidea.lib.tokens.pushtoken import PUSH_ACTION
 from privacyidea.lib.tokens.indexedsecrettoken import PIIXACTION
+from privacyidea.lib.tokens.registrationtoken import DEFAULT_LENGTH, DEFAULT_CONTENTS
 
 from flask import Request, g, current_app, jsonify
 from werkzeug.test import EnvironBuilder
@@ -1260,7 +1263,7 @@ class PrePolicyDecoratorTestCase(MyApiTestCase):
                    action="{0!s}={1!s}".format(ACTION.REMOTE_USER, REMOTE_USER.ACTIVE))
 
         r = is_remote_user_allowed(req)
-        self.assertTrue(r)
+        self.assertEqual(REMOTE_USER.ACTIVE, r)
 
         # Login for the REMOTE_USER is not allowed.
         # Only allowed for user "super", but REMOTE_USER=admin
@@ -1270,23 +1273,30 @@ class PrePolicyDecoratorTestCase(MyApiTestCase):
                    user="super")
 
         r = is_remote_user_allowed(req)
-        self.assertFalse(r)
+        self.assertEqual(REMOTE_USER.DISABLE, r)
 
         # The remote_user "super" is allowed to login:
         env["REMOTE_USER"] = "super"
         req = Request(env)
         r = is_remote_user_allowed(req)
-        self.assertTrue(r)
+        self.assertEqual(REMOTE_USER.ACTIVE, r)
 
         # check that Splt@Sign works correctly
         create_realm(self.realm1)
         set_privacyidea_config(SYSCONF.SPLITATSIGN, True)
         env["REMOTE_USER"] = "super@realm1"
         req = Request(env)
-        self.assertTrue(is_remote_user_allowed(req))
+        self.assertEqual(REMOTE_USER.ACTIVE, is_remote_user_allowed(req))
+
+        # Now set the remote force policy
+        set_policy(name="ruser",
+                   scope=SCOPE.WEBUI,
+                   action="{0!s}={1!s}".format(ACTION.REMOTE_USER, REMOTE_USER.FORCE),
+                   user="super")
+        self.assertEqual(REMOTE_USER.FORCE, is_remote_user_allowed(req))
 
         set_privacyidea_config(SYSCONF.SPLITATSIGN, False)
-        self.assertFalse(is_remote_user_allowed(req))
+        self.assertEqual(REMOTE_USER.DISABLE, is_remote_user_allowed(req))
 
         set_privacyidea_config(SYSCONF.SPLITATSIGN, True)
         delete_policy("ruser")
@@ -2954,6 +2964,65 @@ class PrePolicyDecoratorTestCase(MyApiTestCase):
         check_application_tokentype(req)
         # Check that the tokentype was removed
         self.assertEqual(req.all_data.get("type"), None)
+
+    def test_35_require_piv_attestation(self):
+        from privacyidea.lib.tokens.certificatetoken import ACTION, REQUIRE_ACTIONS
+        builder = EnvironBuilder(method='POST',
+                                 data={'user': "cornelius"},
+                                 headers={})
+        env = builder.get_environ()
+        # Set the remote address so that we can filter for it
+        env["REMOTE_ADDR"] = "10.0.0.1"
+        g.client_ip = env["REMOTE_ADDR"]
+        req = Request(env)
+
+        # Set a policy, that the application is allowed to specify tokentype
+        set_policy(name="pol1",
+                   scope=SCOPE.ENROLL,
+                   action="{0!s}={1!s}".format(ACTION.REQUIRE_ATTESTATION, REQUIRE_ACTIONS.REQUIRE_AND_VERIFY))
+        g.policy_object = PolicyClass()
+
+        # provide an empty attestation
+        req.all_data = {"attestation": "",
+                        "type": "certificate"}
+        req.User = User("cornelius", self.realm1)
+        # This will fail, since the attestation is required.
+        self.assertRaises(PolicyError, required_piv_attestation, req)
+        delete_policy("pol1")
+
+    def test_36_init_registrationcode_length_contents(self):
+        g.logged_in_user = {"username": "admin1",
+                            "realm": "",
+                            "role": "admin"}
+        builder = EnvironBuilder(method='POST',
+                                 data={'type': "registration"},
+                                 headers={})
+        env = builder.get_environ()
+        req = Request(env)
+
+        # first test without any policy
+        req.all_data = {"user": "cornelius", "realm": "home", "type": "registration"}
+        init_registrationcode_length_contents(req)
+        # Check, if the tokenlabel was added
+        self.assertEqual(req.all_data.get("registration.length"), DEFAULT_LENGTH)
+        self.assertEqual(req.all_data.get("registration.contents"), DEFAULT_CONTENTS)
+
+        # now create a policy for the length of the registration code
+        set_policy(name="reg_length",
+                   scope=SCOPE.ENROLL,
+                   action="{0!s}={1!s}".format(ACTION.REGISTRATIONCODE_LENGTH, 6))
+        set_policy(name="reg_contents",
+                   scope=SCOPE.ENROLL,
+                   action="{0!s}={1!s}".format(ACTION.REGISTRATIONCODE_CONTENTS, "+n"))
+        # request, that matches the policy
+        req.all_data = {"user": "cornelius", "realm": "home", "type": "registration"}
+        init_registrationcode_length_contents(req)
+        # Check, if the tokenlabel was added
+        self.assertEqual(req.all_data.get("registration.length"), "6")
+        self.assertEqual(req.all_data.get("registration.contents"), "+n")
+        # delete policy
+        delete_policy("reg_length")
+        delete_policy("reg_contents")
 
 
 class PostPolicyDecoratorTestCase(MyApiTestCase):

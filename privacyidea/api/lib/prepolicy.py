@@ -506,6 +506,40 @@ def init_token_defaults(request=None, action=None):
     return True
 
 
+def init_registrationcode_length_contents(request=None, action=None):
+    """
+    This policy function is to be used as a decorator in the API token init function.
+
+    If there is a valid policy set the action values of REGISTRATIONCODE_LENGTH
+    and REGISTRATIONCODE_CONTENTS are added to request.all_data as
+
+    { 'registration.length': '10', 'registration.contents': 'cn' }
+    """
+    from privacyidea.lib.tokens.registrationtoken import DEFAULT_LENGTH, DEFAULT_CONTENTS
+    no_content_policy = True
+    no_length_policy = True
+    params = request.all_data
+    tokentype = params.get("type")
+    if tokentype == "registration":
+        user_object = get_user_from_param(params)
+        length_pols = Match.user(g, scope=SCOPE.ENROLL, action=ACTION.REGISTRATIONCODE_LENGTH,
+                                user_object=user_object).action_values(unique=True)
+        if len(length_pols) == 1:
+            request.all_data[ACTION.REGISTRATIONCODE_LENGTH] = list(length_pols)[0]
+            no_length_policy = False
+        content_pols = Match.user(g, scope=SCOPE.ENROLL, action=ACTION.REGISTRATIONCODE_CONTENTS,
+                                user_object=user_object).action_values(unique=True)
+        if len(content_pols) == 1:
+            request.all_data[ACTION.REGISTRATIONCODE_CONTENTS] = list(content_pols)[0]
+            no_content_policy = False
+    # if there is no policy, set defaults.
+    if no_length_policy:
+        request.all_data[ACTION.REGISTRATIONCODE_LENGTH] = DEFAULT_LENGTH
+    if no_content_policy:
+        request.all_data[ACTION.REGISTRATIONCODE_CONTENTS] = DEFAULT_CONTENTS
+    return True
+
+
 def init_tokenlabel(request=None, action=None):
     """
     This policy function is to be used as a decorator in the API init function.
@@ -1229,9 +1263,9 @@ def is_remote_user_allowed(req, write_to_audit_log=True):
     :param req: The flask request, containing the remote user and the client IP
     :param write_to_audit_log: whether the policy name should be added to the audit log entry
     :type write_to_audit_log: bool
-    :return: a bool value
+    :return: Return a value or REMOTE_USER, can be "disable", "active" or "force".
+    :rtype: str
     """
-    res = False
     if req.remote_user:
         loginname, realm = split_user(req.remote_user)
         realm = realm or get_default_realm()
@@ -1242,10 +1276,10 @@ def is_remote_user_allowed(req, write_to_audit_log=True):
                                                                 write_to_audit_log=write_to_audit_log)
         # there should be only one action value here
         if ruser_active:
-            if list(ruser_active)[0] == REMOTE_USER.ACTIVE:
-                res = True
+            return list(ruser_active)[0]
 
-    return res
+    # Return default "disable"
+    return REMOTE_USER.DISABLE
 
 
 def save_client_application_type(request, action):
@@ -1964,3 +1998,34 @@ def _attestation_certificate_allowed(attestation_cert, allowed_certs_pols):
         else None
 
     return attestation_certificate_allowed(cert_info, allowed_certs_pols)
+
+
+def required_piv_attestation(request, action=None):
+    """
+    This is a token specific decorator for certificate tokens for the endpoint
+    /token/init
+    According to the policy scope=SCOPE.ENROLL,
+    action=REQUIRE_ATTESTATION an exception is raised, if no attestation parameter is given.
+
+    It also checks the policy if the attestation should be verified and sets the
+    parameter verify_attestation accordingly.
+
+    :param request:
+    :param action:
+    :return:
+    """
+    from privacyidea.lib.tokens.certificatetoken import ACTION, REQUIRE_ACTIONS
+    ttype = request.all_data.get("type")
+    if ttype and ttype.lower() == "certificate":
+        # Get attestation certificate requirement
+        require_att = Match.user(g, scope=SCOPE.ENROLL, action=ACTION.REQUIRE_ATTESTATION,
+                                     user_object=request.User if request.User else None).action_values(unique=True)
+        if REQUIRE_ACTIONS.REQUIRE_AND_VERIFY in list(require_att):
+            if not request.all_data.get("attestation"):
+                # There is no attestation certificate in the request, although it is required!
+                log.warning("The request is missing an attestation certificate. {0!s}".format(require_att))
+                raise PolicyError("A policy requires that you provide an attestation certificate.")
+
+        # Add parameter verify_attestation
+        request.all_data["verify_attestation"] = REQUIRE_ACTIONS.VERIFY in list(require_att) or \
+                                                 REQUIRE_ACTIONS.REQUIRE_AND_VERIFY in list(require_att)

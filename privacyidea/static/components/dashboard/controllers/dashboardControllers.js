@@ -113,17 +113,23 @@ myApp.controller("dashboardController", function (ConfigFactory, TokenFactory,
 
      $scope.getAuthentication = function () {
         $scope.authentications = {"success": 0, "fail": 0};
-        AuditFactory.get({"timelimit": "1d", "action": "*validate*"},
+        AuditFactory.get({"timelimit": "1d", "action": "*validate*", "success": "1"},
             function (data) {
-            var authentications = data.result.value.auditdata;
-            angular.forEach(authentications, function(authlog) {
-                if (authlog.success) {
-                    $scope.authentications.success += 1;
-                } else {
-                    $scope.authentications.fail += 1;
-                }
+                $scope.authentications.success = data.result.value.count;
             });
-        });
+        AuditFactory.get({"timelimit": "1d", "action": "*validate*", "success": "0"},
+            function (data) {
+                $scope.authentications.fail = data.result.value.count;
+                $scope.authentications.users = Array();
+                $scope.authentications.serials = Array();
+                angular.forEach(data.result.value.auditdata, function(auditentry){
+                    if (auditentry.user) {
+                        $scope.authentications.users.push({"user": auditentry.user, "realm": auditentry.realm});
+                    } else {
+                        $scope.authentications.serials.push(auditentry.serial);
+                    }
+                });
+            });
      };
 
      $scope.getAdministration = function () {
@@ -157,10 +163,12 @@ myApp.controller("dashboardController", function (ConfigFactory, TokenFactory,
     if (AuthFactory.checkRight('policyread')) {
         $scope.get_policies();
     };
-    if (AuthFactory.checkRight('eventhandler_read')) {
+    if (AuthFactory.checkRight('eventhandling_read')) {
         $scope.get_events();
     };
-    $scope.getSubscriptions();
+    if (AuthFactory.checkRight('managesubscription')) {
+        $scope.getSubscriptions();
+    };
     if (AuthFactory.checkRight('auditlog')) {
         $scope.getAuthentication();
         $scope.getAdministration();
@@ -176,10 +184,12 @@ myApp.controller("dashboardController", function (ConfigFactory, TokenFactory,
         if (AuthFactory.checkRight('policyread')) {
             $scope.get_policies();
         };
-        if (AuthFactory.checkRight('eventhandler_read')) {
+        if (AuthFactory.checkRight('eventhandling_read')) {
             $scope.get_events();
         };
-        $scope.getSubscriptions();
+        if (AuthFactory.checkRight('managesubscription')) {
+            $scope.getSubscriptions();
+        };
         if (AuthFactory.checkRight('auditlog')) {
             $scope.getAuthentication();
             $scope.getAdministration();

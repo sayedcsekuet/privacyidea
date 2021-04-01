@@ -440,6 +440,23 @@ class BaseEventHandlerTestCase(MyTestCase):
         )
         self.assertEqual(r, False)
 
+        # Check DETAIL_MESSAGE to evaluate to False if it does not exist
+        resp = Response()
+        resp.data = """{"result": {"value": true, "status": true},
+                "detail": {"options": "Nothing"}
+                }
+                """
+
+        r = uhandler.check_condition(
+            {"g": {},
+             "handler_def": {"conditions": {CONDITION.DETAIL_MESSAGE:
+                                                "special"}},
+             "request": req,
+             "response": resp
+             }
+        )
+        self.assertEqual(r, False)
+
         # Check DETAIL_ERROR_MESSAGE
         resp = Response()
         resp.data = """{"result": {"value": false, "status": false},
@@ -2289,5 +2306,55 @@ class TokenEventTestCase(MyTestCase):
         # Check if the new PIN will authenticate with the SPass token
         r, _counter, _reply = t[0].authenticate(pin)
         self.assertTrue(r)
+
+        remove_token("SPASS01")
+
+    def test_12_set_max_failcount(self):
+        # setup realms
+        self.setUp_user_realms()
+
+        init_token({"serial": "SPASS01", "type": "spass"},
+                   User("cornelius", self.realm1))
+        t = get_tokens(serial="SPASS01")
+        uid = t[0].get_user_id()
+        self.assertEqual(uid, "1000")
+
+        g = FakeFlaskG()
+        audit_object = FakeAudit()
+        audit_object.audit_data["serial"] = "SPASS01"
+
+        g.logged_in_user = {"username": "admin",
+                            "role": "admin",
+                            "realm": ""}
+        g.audit_object = audit_object
+
+        builder = EnvironBuilder(method='POST',
+                                 data={'serial': "SPASS01"},
+                                 headers={})
+
+        env = builder.get_environ()
+        # Set the remote address so that we can filter for it
+        env["REMOTE_ADDR"] = "10.0.0.1"
+        g.client_ip = env["REMOTE_ADDR"]
+        req = Request(env)
+        req.all_data = {"serial": "SPASS01", "type": "spass"}
+        resp = Response()
+        resp.data = """{"result": {"value": true}}"""
+
+        # The count window of the token will be set to 123
+        options = {"g": g,
+                   "request": req,
+                   "response": resp,
+                   "handler_def": {"options": {"max failcount": "123"}
+                                   }
+                   }
+
+        t_handler = TokenEventHandler()
+        res = t_handler.do(ACTION_TYPE.SET_MAXFAIL, options=options)
+        self.assertTrue(res)
+        # Check if the token has the correct sync window
+        t = get_tokens(serial="SPASS01")
+        fc = t[0].get_max_failcount()
+        self.assertEqual(fc, 123)
 
         remove_token("SPASS01")
