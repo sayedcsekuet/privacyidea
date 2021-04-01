@@ -33,7 +33,7 @@ import logging
 import json
 from six.moves.urllib.parse import urlencode
 from pydash import get
-from privacyidea.api.lib.utils import getParam
+from expiringdict import ExpiringDict
 
 ENCODING = "utf-8"
 
@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 
 
 class HTTPResolver(UserIdResolver):
-
+    _cachedData = ExpiringDict(max_len=20000000, max_age_seconds=3600)
     fields = {
         "listEndpoint": 1,
         "listMethod": 1,
@@ -154,10 +154,10 @@ class HTTPResolver(UserIdResolver):
         if searchDict is None:
             searchDict = {}
         if ("username" in searchDict) and (searchDict['username'].find('*') == -1):
-            user=self._getUser(searchDict['username'])
-            listUsers=[user]
+            user = self._getUser(searchDict['username'])
+            listUsers = [user]
         else:
-            listUsers=self._getListData(searchDict)
+            listUsers = self._getListData(searchDict)
 
         return listUsers
 
@@ -197,14 +197,14 @@ class HTTPResolver(UserIdResolver):
         :rtype: tuple
         """
         desc = {}
-        paramData={}
+        paramData = {}
         success = False
         try:
             resolver = HTTPResolver()
             resolver.loadConfig(param)
-            paramData['userid']=param.get('testUser')
-            desc['userInfoResponse']=resolver._getUser(param.get('testUser'))
-            desc['userListResponse']=resolver._getListData(paramData)
+            paramData['userid'] = param.get('testUser')
+            desc['userInfoResponse'] = resolver._getUser(param.get('testUser'))
+            desc['userListResponse'] = resolver._getListData(paramData)
             success = True
         except Exception as e:
             success = False
@@ -215,6 +215,11 @@ class HTTPResolver(UserIdResolver):
     #   Private methods
     #
     def _getUser(self, userid):
+        user = self._cachedData.get(userid, None)
+        if user is not None:
+            log.info('Loading user data form cache')
+            return user
+
         param = self.config
         method = param.get('method').lower()
         endpoint = param.get('endpoint').replace("{userid}", userid)
@@ -224,32 +229,34 @@ class HTTPResolver(UserIdResolver):
 
         jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
         if isinstance(jsonHTTPResponse, dict):
-            data=jsonHTTPResponse
+            data = jsonHTTPResponse
         else:
-            data= jsonHTTPResponse[0]
+            data = jsonHTTPResponse[0]
 
         self._createSpecialError(data, userid)
-        return self._mapData(responseMapping, data)
+        user = self._mapData(responseMapping, data)
+        self._cachedData[userid] = user
+        return user
 
-    def _getListData(self, searchDict=None ):
+    def _getListData(self, searchDict=None):
         param = self.config
         method = param.get('listMethod').lower()
         endpoint = param.get('listEndpoint')
-        requestMappingJSON = self._filterData(self._mapData(json.loads(param.get('listRequestMapping')),searchDict))
-        limit = param.get('limit',1000)
-        requestMappingJSON['limit']=param.get('limit',1000)
+        requestMappingJSON = self._filterData(self._mapData(json.loads(param.get('listRequestMapping')), searchDict))
+        requestMappingJSON['limit'] = param.get('limit', 1000)
         headers = json.loads(param.get('listHeaders', '{}'))
         responseMapping = json.loads(param.get('listResponseMapping'))
         jsonHTTPResponse = self._sendHttpRequest(endpoint, method, requestMappingJSON, headers)
-        users=[]
+        users = []
         for userData in jsonHTTPResponse:
-            user=self._mapData(responseMapping, userData)
+            user = self._mapData(responseMapping, userData)
             if "id" in user:
-                user['editable']=False
+                user['editable'] = False
+                self._cachedData[user['username']] = user
                 users.append(user)
         return users
 
-    def _sendHttpRequest(self, endpoint, method, requestParams={}, headers={} ):
+    def _sendHttpRequest(self, endpoint, method, requestParams={}, headers={}):
         method = method.lower()
         if method == "post":
             httpResponse = requests.post(endpoint, json=requestParams, headers=headers)
@@ -263,7 +270,7 @@ class HTTPResolver(UserIdResolver):
 
     def _mapData(self, mapping, data):
         # Create mapped response with response mapping resolver input
-        response={}
+        response = {}
         for pi_user_key, value in mapping.items():
             if value.startswith('{') and value.endswith('}'):
                 response[pi_user_key] = get(data, value[1:-1])
@@ -275,11 +282,11 @@ class HTTPResolver(UserIdResolver):
         if data == None:
             return data
         # Create mapped response with response mapping resolver input
-        response={}
+        response = {}
         for key, value in data.items():
             if value == None:
                 continue
-            response[key] = value.replace(find,replace)
+            response[key] = value.replace(find, replace)
         return response
 
     def _createSpecialError(self, responseData, userid):
